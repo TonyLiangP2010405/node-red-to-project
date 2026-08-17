@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Node-RED 项目生成器</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #1f2937;
+            background: #f3f4f6;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-width: 720px; }
+        header {
+            padding: 20px 32px;
+            color: #fff;
+            background: #1f2937;
+            border-bottom: 3px solid #2563eb;
+        }
+        header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+        header p { margin: 5px 0 0; color: #cbd5e1; font-size: 13px; }
+        main { width: min(1180px, calc(100% - 48px)); margin: 24px auto 48px; }
+        .steps { display: flex; gap: 8px; margin-bottom: 20px; }
+        .step-label {
+            padding: 8px 14px;
+            color: #64748b;
+            background: #e5e7eb;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .step-label.active { color: #fff; background: #2563eb; }
+        .error {
+            padding: 11px 14px;
+            margin-bottom: 16px;
+            color: #991b1b;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 4px;
+        }
+        .panel {
+            padding: 24px;
+            background: #fff;
+            border: 1px solid #dbe1e8;
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+        }
+        .step { display: none; }
+        .step.active { display: block; }
+        h2 { margin: 0 0 18px; font-size: 18px; }
+        h3 { margin: 24px 0 10px; font-size: 15px; }
+        .drop-zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 120px;
+            padding: 20px;
+            color: #475569;
+            background: #f8fafc;
+            border: 1px dashed #94a3b8;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .drop-zone.dragover { color: #1d4ed8; background: #eff6ff; border-color: #2563eb; }
+        .hint { margin: 8px 0 0; color: #64748b; font-size: 12px; }
+        textarea {
+            display: block;
+            width: 100%;
+            min-height: 240px;
+            margin-top: 18px;
+            padding: 12px;
+            resize: vertical;
+            color: #111827;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .toolbar { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+        button {
+            padding: 9px 16px;
+            color: #fff;
+            background: #2563eb;
+            border: 0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #1d4ed8; }
+        button:disabled { cursor: wait; opacity: .6; }
+        button.secondary { color: #334155; background: #e2e8f0; }
+        button.secondary:hover { background: #cbd5e1; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        th { color: #475569; background: #f8fafc; font-weight: 600; }
+        .node-type { color: #0f172a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .dep-row.unknown { background: #fff7ed; }
+        .dep-package {
+            width: min(100%, 360px);
+            padding: 6px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .unknown-note { display: block; margin-top: 5px; color: #c2410c; font-size: 12px; }
+        .warning-list { padding-left: 20px; margin: 8px 0 0; color: #92400e; font-size: 13px; }
+        .project-name { width: 280px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+        .result-layout { display: grid; grid-template-columns: 260px 1fr; min-height: 560px; border: 1px solid #dbe1e8; }
+        .file-tree { padding: 12px; overflow: auto; background: #f8fafc; border-right: 1px solid #dbe1e8; }
+        .file-group + .file-group { margin-top: 14px; }
+        .file-dir { padding: 4px 8px; color: #64748b; font-size: 12px; font-weight: 600; }
+        .file-button {
+            display: block;
+            width: 100%;
+            padding: 7px 8px;
+            color: #334155;
+            background: transparent;
+            border-radius: 3px;
+            text-align: left;
+            font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .file-button:hover, .file-button.selected { color: #1d4ed8; background: #dbeafe; }
+        .preview { overflow: auto; background: #111827; }
+        pre { min-height: 100%; margin: 0; padding: 18px; color: #e5e7eb; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+        code { font: inherit; }
+        .empty { padding: 12px 10px; color: #64748b; font-size: 13px; }
+        @media (max-width: 800px) {
+            body { min-width: 0; }
+            main { width: calc(100% - 24px); margin-top: 14px; }
+            header { padding: 16px; }
+            .panel { padding: 16px; }
+            .result-layout { grid-template-columns: 190px 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Node-RED 项目生成器</h1>
+        <p>上传 flows.json，分析依赖并生成可独立运行的 Node.js 项目</p>
+    </header>
+    <main>
+        <div class="steps" aria-label="处理步骤">
+            <div class="step-label active" data-step-label="upload">1. 上传</div>
+            <div class="step-label" data-step-label="analysis">2. 分析</div>
+            <div class="step-label" data-step-label="result">3. 结果</div>
+        </div>
+        <div id="error" class="error" role="alert" hidden></div>
+
+        <section id="upload-step" class="step active panel">
+            <h2>上传 flows.json</h2>
+            <div id="drop-zone" class="drop-zone" tabindex="0">
+                <div>拖拽 flows.json 到这里，或点击选择文件<br><span class="hint">也可以在下方直接粘贴 JSON</span></div>
+                <input id="file-input" type="file" accept=".json,application/json" hidden>
+            </div>
+            <textarea id="flow-input" placeholder="在这里粘贴 flows.json 内容"></textarea>
+            <div class="toolbar">
+                <button id="analyze-button" type="button">分析</button>
+            </div>
+        </section>
+
+        <section id="analysis-step" class="step panel">
+            <h2>分析结果</h2>
+            <h3>节点清单</h3>
+            <table>
+                <thead><tr><th>type</th><th>name</th></tr></thead>
+                <tbody id="nodes-body"></tbody>
+            </table>
+            <h3>依赖</h3>
+            <p class="hint">可直接编辑包名；版本来自依赖推断结果。</p>
+            <table>
+                <thead><tr><th>包名</th><th>版本</th></tr></thead>
+                <tbody id="deps-body"></tbody>
+            </table>
+            <h3>Warnings</h3>
+            <ul id="warnings" class="warning-list"></ul>
+            <div class="toolbar">
+                <label for="project-name">项目名</label>
+                <input id="project-name" class="project-name" value="my-flow-app" spellcheck="false">
+                <button id="generate-button" type="button">生成项目</button>
+            </div>
+        </section>
+
+        <section id="result-step" class="step panel">
+            <div class="toolbar" style="margin-top: 0; margin-bottom: 18px;">
+                <button id="download-button" type="button">下载 zip</button>
+                <button id="restart-button" class="secondary" type="button">重新开始</button>
+            </div>
+            <div class="result-layout">
+                <aside id="file-tree" class="file-tree" aria-label="生成文件"></aside>
+                <div class="preview"><pre><code id="file-content">请选择一个文件</code></pre></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        "use strict";
+
+        const state = { flow: "", analysis: null, jobId: "", files: [], selectedPath: "" };
+        const $ = id => document.getElementById(id);
+
+        function showError(message) {
+            const error = $("error");
+            error.textContent = message;
+            error.hidden = !message;
+        }
+
+        function showStep(step) {
+            ["upload", "analysis", "result"].forEach(name => {
+                $(`${name}-step`).classList.toggle("active", name === step);
+                document.querySelector(`[data-step-label="${name}"]`).classList.toggle("active", name === step);
+            });
+        }
+
+        async function api(url, options) {
+            const response = await fetch(url, options);
+            const text = await response.text();
+            let data;
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch {
+                data = {};
+            }
+            if (!response.ok) {
+                throw new Error(data.error || `请求失败（${response.status}）`);
+            }
+            return data;
+        }
+
+        function addCell(row, value, className) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            if (className) {
+                cell.className = className;
+            }
+            row.appendChild(cell);
+            return cell;
+        }
+
+        function renderAnalysis(data) {
+            const nodesBody = $("nodes-body");
+            nodesBody.replaceChildren();
+            for (const node of data.nodes || []) {
+                const row = document.createElement("tr");
+                addCell(row, node.type || "", "node-type");
+                addCell(row, node.name || "");
+                nodesBody.appendChild(row);
+            }
+            if (!nodesBody.children.length) {
+                const row = document.createElement("tr");
+                const cell = addCell(row, "没有发现节点");
+                cell.colSpan = 2;
+                nodesBody.appendChild(row);
+            }
+
+            const unknownBySuggestion = new Map((data.unknown || []).map(item => [item.suggestion, item.type]));
+            const depsBody = $("deps-body");
+            depsBody.replaceChildren();
+            for (const [packageName, version] of Object.entries(data.deps || {}).sort(([a], [b]) => a.localeCompare(b))) {
+                const row = document.createElement("tr");
+                row.className = "dep-row";
+                const unknownType = unknownBySuggestion.get(packageName);
+                if (unknownType) {
+                    row.classList.add("unknown");
+                }
+                const packageCell = document.createElement("td");
+                const input = document.createElement("input");
+                input.className = "dep-package";
+                input.value = packageName;
+                input.spellcheck = false;
+                packageCell.appendChild(input);
+                if (unknownType) {
+                    const note = document.createElement("span");
+                    note.className = "unknown-note";
+                    note.textContent = `未知 type：${unknownType}，建议包名：${packageName}`;
+                    packageCell.appendChild(note);
+                }
+                row.appendChild(packageCell);
+                const versionCell = addCell(row, version || "latest");
+                row.dataset.version = version || "latest";
+                row.dataset.originalPackage = packageName;
+                depsBody.appendChild(row);
+            }
+            if (!depsBody.children.length) {
+                const row = document.createElement("tr");
+                const cell = addCell(row, "没有推断出依赖");
+                cell.colSpan = 2;
+                depsBody.appendChild(row);
+            }
+
+            const warnings = $("warnings");
+            warnings.replaceChildren();
+            for (const warning of data.warnings || []) {
+                const item = document.createElement("li");
+                item.textContent = warning;
+                warnings.appendChild(item);
+            }
+            if (!warnings.children.length) {
+                const item = document.createElement("li");
+                item.textContent = "无";
+                warnings.appendChild(item);
+            }
+        }
+
+        function renderFiles(files) {
+            const tree = $("file-tree");
+            tree.replaceChildren();
+            const groups = new Map();
+            for (const file of files.slice().sort((a, b) => a.path.localeCompare(b.path))) {
+                const separator = file.path.lastIndexOf("/");
+                const directory = separator < 0 ? "根目录" : file.path.slice(0, separator);
+                const list = groups.get(directory) || [];
+                list.push(file);
+                groups.set(directory, list);
+            }
+            for (const [directory, group] of groups) {
+                const wrapper = document.createElement("div");
+                wrapper.className = "file-group";
+                const heading = document.createElement("div");
+                heading.className = "file-dir";
+                heading.textContent = directory;
+                wrapper.appendChild(heading);
+                for (const file of group) {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "file-button";
+                    button.dataset.path = file.path;
+                    button.textContent = file.path.slice(file.path.lastIndexOf("/") + 1);
+                    button.addEventListener("click", () => selectFile(file.path));
+                    wrapper.appendChild(button);
+                }
+                tree.appendChild(wrapper);
+            }
+            if (files.length) {
+                selectFile(files[0].path);
+            }
+        }
+
+        function selectFile(filePath) {
+            state.selectedPath = filePath;
+            const file = state.files.find(item => item.path === filePath);
+            $("file-content").textContent = file ? file.content : "";
+            document.querySelectorAll(".file-button").forEach(button => {
+                button.classList.toggle("selected", button.dataset.path === filePath);
+            });
+        }
+
+        async function readSelectedFile(file) {
+            try {
+                $("flow-input").value = await file.text();
+                showError("");
+            } catch (error) {
+                showError(`读取文件失败：${error.message}`);
+            }
+        }
+
+        $("drop-zone").addEventListener("click", () => $("file-input").click());
+        $("drop-zone").addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                $("file-input").click();
+            }
+        });
+        $("file-input").addEventListener("change", event => {
+            const file = event.target.files[0];
+            if (file) {
+                readSelectedFile(file);
+            }
+        });
+        $("drop-zone").addEventListener("dragover", event => {
+            event.preventDefault();
+            $("drop-zone").classList.add("dragover");
+        });
+        $("drop-zone").addEventListener("dragleave", () => $("drop-zone").classList.remove("dragover"));
+        $("drop-zone").addEventListener("drop", event => {
+            event.preventDefault();
+            $("drop-zone").classList.remove("dragover");
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                readSelectedFile(file);
+            }
+        });
+
+        $("analyze-button").addEventListener("click", async () => {
+            const flow = $("flow-input").value;
+            if (!flow.trim()) {
+                showError("请先选择文件或粘贴 flows.json 内容");
+                return;
+            }
+            const button = $("analyze-button");
+            button.disabled = true;
+            showError("");
+            try {
+                state.flow = flow;
+                state.analysis = await api("/api/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain; charset=utf-8" },
+                    body: flow
+                });
+                renderAnalysis(state.analysis);
+                showStep("analysis");
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        $("generate-button").addEventListener("click", async () => {
+            const deps = {};
+            document.querySelectorAll(".dep-row").forEach(row => {
+                const packageName = row.querySelector(".dep-package").value.trim();
+                if (packageName) {
+                    deps[packageName] = row.dataset.version || "latest";
+                }
+            });
+            const button = $("generate-button");
+            button.disabled = true;
+            showError("");
+            try {
+                const result = await api("/api/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json; charset=utf-8" },
+                    body: JSON.stringify({
+                        flow: state.flow,
+                        deps,
+                        projectName: $("project-name").value.trim() || "my-flow-app"
+                    })
+                });
+                state.jobId = result.jobId;
+                state.files = result.files || [];
+                renderFiles(state.files);
+                showStep("result");
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        $("download-button").addEventListener("click", () => {
+            if (state.jobId) {
+                window.location.href = `/api/download/${encodeURIComponent(state.jobId)}`;
+            }
+        });
+
+        $("restart-button").addEventListener("click", () => {
+            state.flow = "";
+            state.analysis = null;
+            state.jobId = "";
+            state.files = [];
+            state.selectedPath = "";
+            $("flow-input").value = "";
+            $("file-input").value = "";
+            $("project-name").value = "my-flow-app";
+            showError("");
+            showStep("upload");
+        });
+    </script>
+</body>
+</html>

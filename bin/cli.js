@@ -11,8 +11,10 @@ const { parseFlowFile } = require("../src/parse");
 const { expandSubflows } = require("../src/subflow");
 const { inferDependencies } = require("../src/deps");
 const { generateProject } = require("../src/gen");
+const { startServer } = require("../src/web/server");
 
 const HELP = `Usage: node-red-to-project <flows.json> [options]
+       node-red-to-project --serve [--port <port>]
 
 Options:
   -o, --output <dir>   Output directory (default: ./<input>-app)
@@ -20,6 +22,8 @@ Options:
       --user-dir <dir> Node-RED user directory (default: ~/.node-red)
       --yes            Accept all dependency suggestions without prompting
       --force          Overwrite a non-empty output directory
+      --serve          Start the Web UI instead of converting a file
+      --port <port>    Web UI port (default: 8321)
   -h, --help           Show this help
 `;
 
@@ -34,6 +38,8 @@ async function main(argv = process.argv.slice(2)) {
                 "user-dir": { type: "string" },
                 yes: { type: "boolean" },
                 force: { type: "boolean" },
+                serve: { type: "boolean" },
+                port: { type: "string" },
                 help: { type: "boolean", short: "h" }
             },
             allowPositionals: true,
@@ -45,6 +51,19 @@ async function main(argv = process.argv.slice(2)) {
 
     if (parsedArgs.values.help) {
         process.stdout.write(HELP);
+        return;
+    }
+    if (parsedArgs.values.serve) {
+        if (parsedArgs.positionals.length !== 0) {
+            throw new Error(`--serve does not accept a flows.json path; use --port to choose a port.\n\n${HELP}`);
+        }
+        const port = parseWebPort(parsedArgs.values.port || "8321");
+        const server = startServer({ port });
+        server.once("listening", () => {
+            const address = server.address();
+            const actualPort = address && typeof address === "object" ? address.port : port;
+            process.stdout.write(`Web UI listening on http://localhost:${actualPort}\n`);
+        });
         return;
     }
     if (parsedArgs.positionals.length !== 1) {
@@ -100,6 +119,14 @@ async function main(argv = process.argv.slice(2)) {
         }
     }
     process.stdout.write("Next: cd into the output directory, then run npm install && npm start.\n");
+}
+
+function parseWebPort(value) {
+    const port = Number(value);
+    if (!Number.isInteger(port) || port < 0 || port > 65535) {
+        throw new Error(`Invalid Web UI port: ${value}`);
+    }
+    return port;
 }
 
 function defaultOutput(inputPath) {

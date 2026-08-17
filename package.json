@@ -7,6 +7,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
+    "web": "node bin/cli.js --serve",
     "test:integration": "node --test test/integration/*.test.js",
     "test:all": "npm test && npm run test:integration"
   },

@@ -25,6 +25,14 @@ CLI 选项：
 | `--yes` | 跳过交互，无法确认的依赖按 `node-red-contrib-*` 猜测执行 |
 | `--force` | 覆盖非空输出目录（会删除目录内容，包括 node_modules） |
 
+## Web 界面
+
+```bash
+npm run web          # 或 node bin/cli.js --serve --port 8321
+```
+
+浏览器打开 `http://localhost:8321`：上传/粘贴 flows.json → 分析节点与依赖（contrib 包名可在页面上编辑确认）→ 生成项目 → 在线预览生成的代码，或下载整个项目的 zip。
+
 ## 依赖推断
 
 `flows.json` 里只有节点 `type` 没有包名，工具按三级策略推断：
