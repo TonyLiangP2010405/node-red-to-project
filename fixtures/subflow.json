@@ -1,0 +1,167 @@
+[
+    {
+        "id": "subflow-worker",
+        "type": "subflow",
+        "name": "Worker",
+        "info": "Transforms an incoming message",
+        "category": "",
+        "in": [
+            {
+                "x": 100,
+                "y": 100,
+                "wires": [
+                    {
+                        "id": "subflow-function"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 460,
+                "y": 100,
+                "wires": [
+                    {
+                        "id": "subflow-function",
+                        "port": 0
+                    }
+                ]
+            }
+        ],
+        "env": [
+            {
+                "name": "MARK",
+                "value": "default",
+                "type": "str"
+            },
+            {
+                "name": "COUNT",
+                "value": "3",
+                "type": "num"
+            },
+            {
+                "name": "ENABLED",
+                "value": "false",
+                "type": "bool"
+            },
+            {
+                "name": "OPTIONS",
+                "value": "{\"retries\":1}",
+                "type": "json"
+            }
+        ],
+        "meta": {
+            "module": ""
+        },
+        "color": "#DDAA99"
+    },
+    {
+        "id": "subflow-function",
+        "type": "function",
+        "z": "subflow-worker",
+        "name": "Mark work complete",
+        "func": "msg.worker = true;\nreturn msg;",
+        "workerMark": "$(MARK)",
+        "workerCount": "$(COUNT)",
+        "workerEnabled": "$(ENABLED)",
+        "workerOptions": "$(OPTIONS)",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 280,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "tab-subflow",
+        "type": "tab",
+        "label": "Subflow Demo",
+        "disabled": false,
+        "info": "Use a subflow instance",
+        "env": []
+    },
+    {
+        "id": "subflow-instance",
+        "type": "subflow:subflow-worker",
+        "z": "tab-subflow",
+        "name": "Worker instance",
+        "x": 260,
+        "y": 180,
+        "env": [
+            {
+                "name": "MARK",
+                "value": "instance",
+                "type": "str"
+            },
+            {
+                "name": "COUNT",
+                "value": "7",
+                "type": "num"
+            },
+            {
+                "name": "ENABLED",
+                "value": "true",
+                "type": "bool"
+            },
+            {
+                "name": "OPTIONS",
+                "value": "{\"retries\":2}",
+                "type": "json"
+            }
+        ],
+        "wires": [
+            [
+                "subflow-sink"
+            ]
+        ]
+    },
+    {
+        "id": "subflow-inject",
+        "type": "inject",
+        "z": "tab-subflow",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "go",
+        "payloadType": "str",
+        "x": 100,
+        "y": 180,
+        "wires": [
+            [
+                "subflow-instance"
+            ]
+        ]
+    },
+    {
+        "id": "subflow-sink",
+        "type": "debug",
+        "z": "tab-subflow",
+        "name": "sink",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "worker",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 500,
+        "y": 180,
+        "wires": []
+    }
+]

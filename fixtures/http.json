@@ -1,0 +1,57 @@
+[
+    {
+        "id": "tab-http",
+        "type": "tab",
+        "label": "HTTP",
+        "disabled": false,
+        "info": "Simple hello endpoint",
+        "env": []
+    },
+    {
+        "id": "http-in-hello",
+        "type": "http in",
+        "z": "tab-http",
+        "name": "GET /hello",
+        "url": "/hello",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 140,
+        "y": 160,
+        "wires": [
+            [
+                "http-template"
+            ]
+        ]
+    },
+    {
+        "id": "http-template",
+        "type": "template",
+        "z": "tab-http",
+        "name": "Greeting",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "html",
+        "syntax": "mustache",
+        "template": "<h1>Hello</h1>",
+        "output": "str",
+        "x": 340,
+        "y": 160,
+        "wires": [
+            [
+                "http-response"
+            ]
+        ]
+    },
+    {
+        "id": "http-response",
+        "type": "http response",
+        "z": "tab-http",
+        "name": "Response",
+        "statusCode": "",
+        "headers": {},
+        "x": 540,
+        "y": 160,
+        "wires": []
+    }
+]

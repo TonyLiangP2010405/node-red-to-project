@@ -1,0 +1,72 @@
+[
+    {
+        "id": "tab-basic",
+        "type": "tab",
+        "label": "Basic",
+        "disabled": false,
+        "info": "Inject a greeting and uppercase it",
+        "env": []
+    },
+    {
+        "id": "basic-inject",
+        "type": "inject",
+        "z": "tab-basic",
+        "name": "Hello",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "hello",
+        "payloadType": "str",
+        "x": 120,
+        "y": 100,
+        "wires": [
+            [
+                "basic-function"
+            ]
+        ]
+    },
+    {
+        "id": "basic-function",
+        "type": "function",
+        "z": "tab-basic",
+        "name": "Uppercase",
+        "func": "msg.payload = msg.payload.toUpperCase();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 100,
+        "wires": [
+            [
+                "basic-debug"
+            ]
+        ]
+    },
+    {
+        "id": "basic-debug",
+        "type": "debug",
+        "z": "tab-basic",
+        "name": "Result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 520,
+        "y": 100,
+        "wires": []
+    }
+]
