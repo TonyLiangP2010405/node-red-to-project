@@ -57,7 +57,7 @@ function 节点：`func(msg, node)` 支持同步返回 msg/数组/null、async �
 
 ## 节点白名单 v1（src/rewrite/nodes/*.js）
 
-inject / debug / function / change / switch / delay / template / http in / http response / junction / link in / link out
+inject / debug / function / change / switch / delay / template / http in / http response / http request / junction / link in / link out
 
 - junction、link in、link out = 直通节点（links→wires 已由 runtime 处理）
 - change/switch 的 jsonata 规则、template 的 mustache：惰性 require，生成项目按需加依赖

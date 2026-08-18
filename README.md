@@ -4,7 +4,7 @@
 
 ## 两种转换模式
 
-**rewrite（默认）**：完全重写为手写风格、零 Node-RED 痕迹的项目。每种节点类型由工具自带的干净手写实现提供（`lib/nodes/`，随项目拷入、可自由修改），function 节点的代码生成为真实 JS 函数。依赖极简——按用到的功能自动决定（http→express、template→mustache、jsonata 规则→jsonata）。当前支持白名单：inject / debug / function / change / switch / delay / template / http in / http response / junction / link in / link out。白名单外的类型会报错并列清单。
+**rewrite（默认）**：完全重写为手写风格、零 Node-RED 痕迹的项目。每种节点类型由工具自带的干净手写实现提供（`lib/nodes/`，随项目拷入、可自由修改），function 节点的代码生成为真实 JS 函数。依赖极简——按用到的功能自动决定（http→express、template→mustache、jsonata 规则→jsonata）。当前支持白名单：inject / debug / function / change / switch / delay / template / http in / http response / http request / junction / link in / link out。白名单外的类型会报错并列清单。
 
 **runtime（`--mode runtime`）**：兼容模式。流程生成为代码，节点行为加载 `@node-red/nodes` 和各 contrib 包里的官方真实实现运行，保真度最高，支持几乎所有节点类型（Dashboard 等编辑器专属节点除外）。
 
@@ -86,7 +86,7 @@ Node-RED 导出时凭据会被剥离。两种方式注入：
 
 ## 已知限制
 
-- **rewrite 模式白名单**：只支持 inject / debug / function / change / switch / delay / template / http in / http response / junction / link in / link out；白名单外的类型生成时报错，可退回 `--mode runtime`
+- **rewrite 模式白名单**：只支持 inject / debug / function / change / switch / delay / template / http in / http response / http request / junction / link in / link out；白名单外的类型生成时报错，可退回 `--mode runtime`
 - rewrite 模式暂不支持的子特性：inject 的 crontab、delay 的 random/timed 等模式、link call/return、subflow 的 cred 类型 env
 - **Dashboard 等编辑器专属节点**（`ui_*`）：依赖 `RED.httpAdmin` 和编辑器 websocket，runtime 模式下会打警告，rewrite 模式不支持
 - **httpAdmin 自定义端点**：个别 contrib 节点用它暴露管理接口，runtime 模式里 404
