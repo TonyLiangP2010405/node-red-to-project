@@ -65,6 +65,8 @@
         }
         .drop-zone.dragover { color: #1d4ed8; background: #eff6ff; border-color: #2563eb; }
         .hint { margin: 8px 0 0; color: #64748b; font-size: 12px; }
+        .mode-choice { display: flex; gap: 18px; margin-top: 18px; color: #334155; font-size: 14px; }
+        .mode-choice label { cursor: pointer; }
         textarea {
             display: block;
             width: 100%;
@@ -155,6 +157,10 @@
                 <input id="file-input" type="file" accept=".json,application/json" hidden>
             </div>
             <textarea id="flow-input" placeholder="在这里粘贴 flows.json 内容"></textarea>
+            <div class="mode-choice" role="radiogroup" aria-label="生成模式">
+                <label><input type="radio" name="mode" value="rewrite" checked> rewrite 手写代码版</label>
+                <label><input type="radio" name="mode" value="runtime"> runtime 兼容版</label>
+            </div>
             <div class="toolbar">
                 <button id="analyze-button" type="button">分析</button>
             </div>
@@ -167,12 +173,18 @@
                 <thead><tr><th>type</th><th>name</th></tr></thead>
                 <tbody id="nodes-body"></tbody>
             </table>
-            <h3>依赖</h3>
-            <p class="hint">可直接编辑包名；版本来自依赖推断结果。</p>
-            <table>
-                <thead><tr><th>包名</th><th>版本</th></tr></thead>
-                <tbody id="deps-body"></tbody>
-            </table>
+            <div id="deps-section">
+                <h3>依赖</h3>
+                <p class="hint">可直接编辑包名；版本来自依赖推断结果。</p>
+                <table>
+                    <thead><tr><th>包名</th><th>版本</th></tr></thead>
+                    <tbody id="deps-body"></tbody>
+                </table>
+            </div>
+            <div id="unsupported-section" hidden>
+                <h3>不支持的节点类型</h3>
+                <ul id="unsupported-types" class="warning-list"></ul>
+            </div>
             <h3>Warnings</h3>
             <ul id="warnings" class="warning-list"></ul>
             <div class="toolbar">
@@ -197,7 +209,7 @@
     <script>
         "use strict";
 
-        const state = { flow: "", analysis: null, jobId: "", files: [], selectedPath: "" };
+        const state = { flow: "", mode: "rewrite", analysis: null, jobId: "", files: [], selectedPath: "" };
         const $ = id => document.getElementById(id);
 
         function showError(message) {
@@ -239,6 +251,21 @@
         }
 
         function renderAnalysis(data) {
+            state.mode = data.mode || state.mode || "rewrite";
+            $("deps-section").hidden = state.mode === "rewrite";
+            $("unsupported-section").hidden = state.mode !== "rewrite";
+            const unsupportedTypes = $("unsupported-types");
+            unsupportedTypes.replaceChildren();
+            for (const type of data.unsupportedTypes || []) {
+                const item = document.createElement("li");
+                item.textContent = type;
+                unsupportedTypes.appendChild(item);
+            }
+            if (state.mode === "rewrite" && !unsupportedTypes.children.length) {
+                const item = document.createElement("li");
+                item.textContent = "全部节点类型都有内置实现";
+                unsupportedTypes.appendChild(item);
+            }
             const nodesBody = $("nodes-body");
             nodesBody.replaceChildren();
             for (const node of data.nodes || []) {
@@ -393,10 +420,11 @@
             showError("");
             try {
                 state.flow = flow;
+                state.mode = document.querySelector('input[name="mode"]:checked').value;
                 state.analysis = await api("/api/analyze", {
                     method: "POST",
-                    headers: { "Content-Type": "text/plain; charset=utf-8" },
-                    body: flow
+                    headers: { "Content-Type": "application/json; charset=utf-8" },
+                    body: JSON.stringify({ flow, mode: state.mode })
                 });
                 renderAnalysis(state.analysis);
                 showStep("analysis");
@@ -409,12 +437,14 @@
 
         $("generate-button").addEventListener("click", async () => {
             const deps = {};
-            document.querySelectorAll(".dep-row").forEach(row => {
-                const packageName = row.querySelector(".dep-package").value.trim();
-                if (packageName) {
-                    deps[packageName] = row.dataset.version || "latest";
-                }
-            });
+            if (state.mode === "runtime") {
+                document.querySelectorAll(".dep-row").forEach(row => {
+                    const packageName = row.querySelector(".dep-package").value.trim();
+                    if (packageName) {
+                        deps[packageName] = row.dataset.version || "latest";
+                    }
+                });
+            }
             const button = $("generate-button");
             button.disabled = true;
             showError("");
@@ -424,6 +454,7 @@
                     headers: { "Content-Type": "application/json; charset=utf-8" },
                     body: JSON.stringify({
                         flow: state.flow,
+                        mode: state.mode,
                         deps,
                         projectName: $("project-name").value.trim() || "my-flow-app"
                     })
@@ -447,12 +478,14 @@
 
         $("restart-button").addEventListener("click", () => {
             state.flow = "";
+            state.mode = "rewrite";
             state.analysis = null;
             state.jobId = "";
             state.files = [];
             state.selectedPath = "";
             $("flow-input").value = "";
             $("file-input").value = "";
+            document.querySelector('input[name="mode"][value="rewrite"]').checked = true;
             $("project-name").value = "my-flow-app";
             showError("");
             showStep("upload");

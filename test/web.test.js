@@ -32,8 +32,8 @@ test("serves the Web UI and analyzes a flow", { timeout: 30_000 }, async () => {
 
     const response = await fetch(`${baseUrl}/api/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-        body: flow
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ flow, mode: "runtime" })
     });
     assert.equal(response.status, 200);
     const result = await response.json();
@@ -54,6 +54,19 @@ test("serves the Web UI and analyzes a flow", { timeout: 30_000 }, async () => {
     assert.deepEqual(result.warnings, []);
 });
 
+test("analyze defaults to rewrite mode and reports unsupported types", { timeout: 30_000 }, async () => {
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        body: flow
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    // rewrite mode: no contrib deps to confirm, whitelisted types fully supported
+    assert.deepEqual(result.deps, {});
+    assert.deepEqual(result.unsupportedTypes, []);
+});
+
 test("returns 400 for invalid flow JSON", { timeout: 30_000 }, async () => {
     const response = await fetch(`${baseUrl}/api/analyze`, {
         method: "POST",
@@ -71,6 +84,7 @@ test("generates preview files and downloads a ZIP job", { timeout: 30_000 }, asy
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
             flow,
+            mode: "runtime",
             deps: { "@node-red/nodes": "^5.0.0" },
             projectName: "basic-app"
         })

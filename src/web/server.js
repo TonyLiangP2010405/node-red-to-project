@@ -8,6 +8,7 @@ const path = require("node:path");
 
 const { inferDependencies } = require("../deps");
 const { generateProject } = require("../gen");
+const { generateRewriteProject, getUnsupportedNodeTypes } = require("../rewrite/gen");
 const { parseFlowFile } = require("../parse");
 const { expandSubflows } = require("../subflow");
 
@@ -92,16 +93,31 @@ async function handleAnalyze(request, response, userDir) {
     }
 
     try {
-        const parsed = parseFlowFile(body);
+        const requestData = parseAnalyzeBody(body);
+        const mode = parseMode(requestData.mode);
+        const parsed = parseFlowFile(requestData.flow);
         expandSubflows(parsed);
         const nodes = collectNodes(parsed);
+        if (mode === "rewrite") {
+            sendJson(response, 200, {
+                mode,
+                nodes,
+                deps: {},
+                resolved: {},
+                unsupportedTypes: getUnsupportedNodeTypes(parsed),
+                warnings: parsed.warnings || []
+            });
+            return;
+        }
         const types = [...new Set(nodes.map(node => node.type).filter(Boolean))];
         const inference = inferDependencies(types, { userDir });
         sendJson(response, 200, {
+            mode,
             nodes,
             deps: inference.deps || {},
             resolved: inference.resolved || {},
             unknown: inference.unknown || [],
+            unsupportedTypes: [],
             warnings: parsed.warnings || []
         });
     } catch (error) {
@@ -135,6 +151,13 @@ async function handleGenerate(request, response, userDir) {
         return;
     }
 
+    let mode;
+    try {
+        mode = parseMode(input.mode);
+    } catch (error) {
+        sendJson(response, 400, { error: error.message });
+        return;
+    }
     const projectName = typeof input.projectName === "string" && input.projectName.trim()
         ? input.projectName.trim()
         : "my-flow-app";
@@ -147,15 +170,23 @@ async function handleGenerate(request, response, userDir) {
         fs.writeFileSync(inputPath, input.flow, "utf8");
         const parsed = parseFlowFile(input.flow);
         expandSubflows(parsed);
-        const result = generateProject({
-            inputPath,
-            parsed,
-            deps,
-            outDir,
-            projectName,
-            runtimeDir: path.join(__dirname, "..", "runtime"),
-            force: false
-        });
+        const result = mode === "rewrite"
+            ? generateRewriteProject({
+                inputPath,
+                parsed,
+                outDir,
+                projectName,
+                force: false
+            })
+            : generateProject({
+                inputPath,
+                parsed,
+                deps,
+                outDir,
+                projectName,
+                runtimeDir: path.join(__dirname, "..", "runtime"),
+                force: false
+            });
         const files = result.files.map(relativePath => {
             const normalizedPath = relativePath.split(path.sep).join("/");
             const content = fs.readFileSync(path.join(outDir, relativePath), "utf8");
@@ -215,6 +246,27 @@ function collectNodes(parsed) {
     }
     addNodes(parsed.globalConfigs);
     return nodes;
+}
+
+function parseAnalyzeBody(body) {
+    let value;
+    try {
+        value = JSON.parse(body);
+    } catch {
+        return { flow: body, mode: "rewrite" };
+    }
+    if (value && typeof value === "object" && !Array.isArray(value) && typeof value.flow === "string") {
+        return { flow: value.flow, mode: value.mode };
+    }
+    return { flow: body, mode: "rewrite" };
+}
+
+function parseMode(value) {
+    const mode = value || "rewrite";
+    if (mode !== "rewrite" && mode !== "runtime") {
+        throw new Error(`Invalid mode: ${mode}. Use rewrite or runtime.`);
+    }
+    return mode;
 }
 
 function cleanupJobs() {

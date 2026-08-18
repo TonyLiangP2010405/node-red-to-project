@@ -11,6 +11,7 @@ const { parseFlowFile } = require("../src/parse");
 const { expandSubflows } = require("../src/subflow");
 const { inferDependencies } = require("../src/deps");
 const { generateProject } = require("../src/gen");
+const { generateRewriteProject } = require("../src/rewrite/gen");
 const { startServer } = require("../src/web/server");
 
 const HELP = `Usage: node-red-to-project <flows.json> [options]
@@ -18,13 +19,14 @@ const HELP = `Usage: node-red-to-project <flows.json> [options]
 
 Options:
   -o, --output <dir>   Output directory (default: ./<input>-app)
-      --name <name>   Generated project name
+      --name <name>    Generated project name
+      --mode <mode>    Generation mode: rewrite (default) or runtime
       --user-dir <dir> Node-RED user directory (default: ~/.node-red)
-      --yes            Accept all dependency suggestions without prompting
-      --force          Overwrite a non-empty output directory
-      --serve          Start the Web UI instead of converting a file
-      --port <port>    Web UI port (default: 8321)
-  -h, --help           Show this help
+      --yes             Accept all dependency suggestions without prompting
+      --force           Overwrite a non-empty output directory
+      --serve           Start the Web UI instead of converting a file
+      --port <port>     Web UI port (default: 8321)
+  -h, --help            Show this help
 `;
 
 async function main(argv = process.argv.slice(2)) {
@@ -35,6 +37,7 @@ async function main(argv = process.argv.slice(2)) {
             options: {
                 output: { type: "string", short: "o" },
                 name: { type: "string" },
+                mode: { type: "string" },
                 "user-dir": { type: "string" },
                 yes: { type: "boolean" },
                 force: { type: "boolean" },
@@ -70,6 +73,7 @@ async function main(argv = process.argv.slice(2)) {
         throw new Error(`Exactly one flows.json path is required.\n\n${HELP}`);
     }
 
+    const mode = parseMode(parsedArgs.values.mode || "rewrite");
     const inputPath = path.resolve(parsedArgs.positionals[0]);
     const outputPath = path.resolve(parsedArgs.values.output || defaultOutput(inputPath));
     const projectName = parsedArgs.values.name || path.basename(outputPath);
@@ -79,38 +83,50 @@ async function main(argv = process.argv.slice(2)) {
     const input = JSON.parse(raw);
     const parsed = parseFlowFile(input);
     expandSubflows(parsed);
-    const types = collectTypes(parsed);
-    const inference = inferDependencies(types, { userDir });
-    const deps = { ...(inference.deps || {}) };
-    const warnings = [...(parsed.warnings || [])];
-    const unconfirmedDeps = [];
-
-    if ((inference.unknown || []).length > 0) {
-        if (parsedArgs.values.yes) {
-            for (const unknown of inference.unknown) {
-                acceptSuggestion(unknown, deps, warnings, unconfirmedDeps, true);
+    let result;
+    let deps = {};
+    if (mode === "rewrite") {
+        result = generateRewriteProject({
+            inputPath,
+            parsed,
+            outDir: outputPath,
+            projectName,
+            force: Boolean(parsedArgs.values.force)
+        });
+    } else {
+        const types = collectTypes(parsed);
+        const inference = inferDependencies(types, { userDir });
+        deps = { ...(inference.deps || {}) };
+        const warnings = [...(parsed.warnings || [])];
+        const unconfirmedDeps = [];
+        if ((inference.unknown || []).length > 0) {
+            if (parsedArgs.values.yes) {
+                for (const unknown of inference.unknown) {
+                    acceptSuggestion(unknown, deps, warnings, unconfirmedDeps, true);
+                }
+            } else {
+                await confirmUnknownTypes(inference.unknown, deps, warnings, unconfirmedDeps);
             }
-        } else {
-            await confirmUnknownTypes(inference.unknown, deps, warnings, unconfirmedDeps);
         }
+        result = generateProject({
+            inputPath,
+            parsed: { ...parsed, warnings },
+            deps,
+            outDir: outputPath,
+            projectName,
+            runtimeDir: path.join(__dirname, "..", "src", "runtime"),
+            force: Boolean(parsedArgs.values.force),
+            resolved: inference.resolved || {},
+            unconfirmedDeps
+        });
     }
 
-    const result = generateProject({
-        inputPath,
-        parsed: { ...parsed, warnings },
-        deps,
-        outDir: outputPath,
-        projectName,
-        runtimeDir: path.join(__dirname, "..", "src", "runtime"),
-        force: Boolean(parsedArgs.values.force),
-        resolved: inference.resolved || {},
-        unconfirmedDeps
-    });
-
     process.stdout.write(`Generated ${result.files.length} files in ${outputPath}.\n`);
-    process.stdout.write("Dependencies:\n");
-    for (const [name, version] of Object.entries(deps).sort(([a], [b]) => a.localeCompare(b))) {
-        process.stdout.write(`  ${name}: ${version}\n`);
+    if (mode === "runtime") {
+        process.stdout.write("Dependencies:\n");
+        for (const [name, version] of Object.entries(deps).sort(([a], [b]) => a.localeCompare(b))) {
+            process.stdout.write(`  ${name}: ${version}\n`);
+        }
     }
     if (result.warnings.length > 0) {
         process.stdout.write("Warnings:\n");
@@ -127,6 +143,13 @@ function parseWebPort(value) {
         throw new Error(`Invalid Web UI port: ${value}`);
     }
     return port;
+}
+
+function parseMode(value) {
+    if (value !== "rewrite" && value !== "runtime") {
+        throw new Error(`Invalid mode: ${value}. Use rewrite or runtime.`);
+    }
+    return value;
 }
 
 function defaultOutput(inputPath) {
